@@ -85,7 +85,7 @@ get_ips(){
 IP4_LIST=$(ndmc -c show ip dhcp bindings |
  grep -B5 'expires: infinity' |
  awk '{print $1,$2}' |
- grep -E 'ip|^name|mac' |
+ grep -A5 'ip:' | grep -E 'ip|^name|mac' |
  awk '{print $2}' |
  xargs -l3 | sort |
  awk '{print $1,$3,$2}'|
