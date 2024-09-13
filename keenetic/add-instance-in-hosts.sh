@@ -6,12 +6,13 @@
 # Опрос изменений происходить раз в час
 # Перед запуском нужно установить cron командой opkg install cron
 
-# VERSION 1.0.1
+# VERSION 1.1
 
 #USER VARIABLE
 local_iface=br0 #Сюда нужно ввести локальный интерфейс
 router_name=S-KN-1811 #Сюда нужно ввести имя роутера (будет отображаться в клиентах в адгуарде)
-get_old=1 #тут можно задать 0 или 1, выключает и включает последнюю стадию скрипта, которая сохраняет в файл все устройства, если они были удалены из зарегистрирвоанных клиентов или же пропал ipv6 адрес
+ipv6_enable=1 #Если 1 - будет пытатсья получить ipv6 адреса устройства, если 0 - будет пропускать этот шаг
+get_old=1 #Тут можно задать 0 или 1, выключает и включает последнюю стадию скрипта, которая сохраняет в отдельный файл все устройства, если они были удалены из зарегистрирвоанных клиентов или же пропал ipv6 адрес
 
 #SCRIPT VARIABLE
 SYSTEM_PATH="/opt"
@@ -40,19 +41,17 @@ create_file(){
 create_file $FILE_R $FILE_O
 
 check_ip(){
-  fIP_LIST="$1"; fNAME="$2"; fMAC="$3"; fFILE="$4"; ret=0
+  fIP_LIST="$1"; fNAME="$2"; fMAC="$3"; fFILE="$4"
   fDATE=#$(date +%Y.%m.%d-%H:%M:%S)
   for fIP in $fIP_LIST; do
-    if [ $(grep -P "$fNAME\t$fIP\t$fMAC" -c $fFILE) -eq 0 ]; then
+    if [ $(grep -P "$fNAME\t$fMAC\t$fIP" -c $fFILE) -eq 0 ]; then
       if [ $(grep -P "\t$fIP\t" -c $fFILE) -eq 0 ]; then
-        echo -e "$fNAME\t$fIP\t$fMAC\t$fDATE"
+        echo -e "$fNAME\t$fMAC\t$fIP\t$fDATE" >> $fFILE
       else
-        sed -i 's/.*\t'$fIP'\t.*/'$fNAME'\t'$fIP'\t'$fMAC'\t'$fDATE'/' $fFILE
+        sed -i 's/.*\t'$fIP'\t.*/'$fNAME'\t'$fMAC'\t'$fIP'\t'$fDATE'/' $fFILE
       fi
-      ret=1
     fi
   done
-  return $ret
 }
 
 #GET IPS
@@ -70,32 +69,29 @@ get_ips(){
     if [ $((i % 3)) -eq 0 ]; then 
       MAC="$item4"
       i=0
-      ip6_list="$(ip -6 neigh show | grep "$MAC" | sort | awk '{print $1}')"
-      check_ip "$ip4 $ip6_list" "$NAME" "$MAC" "$fFILE"
+      [ $ipv6_enable -eq 1 ] && IP="$(echo $IP && ip -6 neigh show | grep "$MAC" | sort | awk '{print $1}')"
+      check_ip "$IP" "$NAME" "$MAC" "$fFILE"
     elif [ $((i % 2)) -eq 0 ]; then
       NAME="$item4"
     else 
-      ip4="$item4"
+      IP="$item4"
     fi
   done
-  cat $fFILE
 }
 
 #MAKE IP4_LIST variable
 IP4_LIST=$(ndmc -c show ip dhcp bindings |
  grep -B5 'expires: infinity' |
- awk '{print $1,$2}' |
- grep -A5 'ip:' | grep -E 'ip|^name|mac' |
- awk '{print $2}' |
- xargs -l3 | sort |
- awk '{print $1,$3,$2}'|
- sed -e 's/_/-/g; s/+//g' -)
+ grep -A5 ' ip:' | grep -E ' (ip|name|mac)' |
+ cut -d':' -f2- |
+ sed -e 's/^ *//g; s/[_| ]/-/g; s/+//g' - |
+ xargs -l3 | sort | awk '{print $1,$3,$2}')
 
-get_ips "$IP4_LIST" $FILE_R | sort |
+get_ips "$IP4_LIST" $FILE_R && sort $FILE_R |
  diff -u $FILE_R - | patch $FILE_R -
 
 #PATCH HOSTS FILE
-awk 'BEGIN {OFS="\t"}; {print $2,$1}' $FILE_R | sort |
+awk 'BEGIN {OFS="\t"}; {print $3,$1}' $FILE_R | sort |
  diff -u /var/hosts - | patch /var/hosts - |
  if [ $(grep "patching file" -c ) -ne 0 ]; then $(echo $RESTART_DNS); fi
 
@@ -106,7 +102,7 @@ find_old(){
    ip addr show dev $local_iface | grep inet | sed 's/\/.*//g' | awk '{print $2}' &&
    echo "127.0.0.1 ::1")
   CUR_F=$1
-  CUR_L=$(awk '{print $2}' $CUR_F)
+  CUR_L=$(awk '{print $3}' $CUR_F)
   OLD_F=$2
   fDATE=#$(date +%Y.%m.%d-%H:%M:%S)
   for fIP in $CUR_L; do
@@ -119,5 +115,5 @@ find_old(){
     fi
   done
 }
-if [ $get_old -eq 1 ]; then find_old $FILE_R $FILE_O | sort |
- diff -u $FILE_O - | patch $FILE_O - ; fi
+[ $get_old -eq 1 ] && find_old $FILE_R $FILE_O | sort |
+ diff -u $FILE_O - | patch $FILE_O - 
