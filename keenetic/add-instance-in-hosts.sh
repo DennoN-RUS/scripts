@@ -4,7 +4,8 @@
 # Adguard вычитывает файл /etc/hosts из системы, и все записи из этого файла попадают в Клиенты (runtime)
 # При этом файл /etc/hosts - это ссылка на файл /var/hosts
 # Опрос изменений происходить раз в час
-# Перед запуском нужно установить cron командой opkg install cron
+# Перед запуском нужно установить дополнительные пакеты opkg install cron curl diffutils patch 
+# Инструкция https://telegra.ph/Avtomaticheskoe-dobavlenie-klientov-v-AdguardHome-iz-routera-Keenetic-09-12
 
 # VERSION 1.1
 
