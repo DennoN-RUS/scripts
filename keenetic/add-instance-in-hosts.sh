@@ -5,7 +5,7 @@
 # При этом файл /etc/hosts - это ссылка на файл /var/hosts
 # Опрос изменений происходить раз в час
 # Перед запуском нужно установить дополнительные пакеты opkg install cron curl diffutils patch 
-# Инструкция https://telegra.ph/Avtomaticheskoe-dobavlenie-klientov-v-AdguardHome-iz-routera-Keenetic-09-12
+# Инструкция https://teletype.in/@dennon/Avtomaticheskoe-dobavlenie-klientov-v-Adguard
 
 # VERSION 1.1
 
